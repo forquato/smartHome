@@ -12,6 +12,7 @@
 WiFiClient WiFiclient;
 MQTTClient client;
 
+int eingang = A0;
 
 #define MQTT_SERVER      "192.168.178.99"
 #define MQTT_SERVERPORT  1883                   // use 8883 for SSL
@@ -21,7 +22,7 @@ MQTTClient client;
 #define DHTPIN 4     // what digital pin the DHT22 is conected to
 #define DHTTYPE DHT22   // there are multiple kinds of DHT sensors
 
-int repeat = 240;
+int repeat = 200;
 
 //int ledG = 15;
 //int ledR = 13;
@@ -54,7 +55,7 @@ void setup() {
   client.begin(MQTT_SERVER, WiFiclient);
 
   client.setWill("/dht_22/service","Connection interrupted");
-  client.setOptions(repeat*2+100, true, 1000);
+  client.setOptions(repeat*3, true, 1000);
 
   Serial.print("\nconnecting to mqqt broker...");
   while (!client.connect("dht22_sensor", "openhabian", "openhabian")) {
@@ -70,24 +71,31 @@ void setup() {
 
 int interval = repeat*1000;
 int timeSinceLastRead = interval;
+
+int timeSinceLastChecks = 0;
 void loop() {
 
-  // Report every x seconds.
-  if(timeSinceLastRead > interval) {
-
+  //Serial.println(timeSinceLastChecks);
+  if((timeSinceLastChecks) > repeat*1000) {
+    
+    client.publish("/dht_22/service", "Start Checks for Wifi and Mqtt."); 
+    
     // check whether wifi is connected
     if(WiFi.status() != WL_CONNECTED){
       connect();
-      client.publish("/dht_22/service", "Wifi Reconnected", true, 1);        
+      client.publish("/dht_22/service", "Wifi Reconnected");        
     }
+    checkBrokerConnection();
+    
+    timeSinceLastChecks = 0;
+  }
 
-    if (!client.connected()){  
-      while (!client.connect("dht22_sensor", "openhabian", "openhabian")) {
-        Serial.print(".");
-        delay(1000);
-    }
-      client.publish("/dht_22/service", "Mqtt Reconnected", true, 1);
-    }
+  if((timeSinceLastRead%1000)==0) {
+    client.publish("/dht_22/light", String(analogRead(eingang)), true, 1);
+  }
+
+  // Report every x seconds.
+  if(timeSinceLastRead > interval) {
     
     // Reading temperature or humidity takes about 250 milliseconds!
     // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
@@ -142,6 +150,7 @@ void loop() {
   }
   delay(100);
   timeSinceLastRead += 100;
+  timeSinceLastChecks +=100;
   
 }
 
@@ -197,4 +206,16 @@ void connect() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
   Serial.println();
+}
+
+void checkBrokerConnection(){
+
+     if (!client.connected()){  
+      client.publish("/dht_22/service", "Mqtt not Connected. Try to reconnect.", true, 1);
+      while (!client.connect("dht22_sensor", "openhabian", "openhabian")) {
+        delay(1000);
+    }
+      client.publish("/dht_22/service", "Mqtt Reconnected");
+    }
+  
 }
