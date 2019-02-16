@@ -3,6 +3,9 @@
 #include <ESP8266WiFi.h>
 #include <MQTTClient.h> //https://github.com/256dpi/arduino-mqtt
 
+#include "Adafruit_Si7021.h" //si7021 sensor
+Adafruit_Si7021 sisensor = Adafruit_Si7021();
+
 //#define WIFI_SSID       "FRITZ!Box 7490"
 //#define WIFI_PASS       "1337skillz"
 
@@ -19,34 +22,38 @@ int eingang = A0;
 #define MQTT_USERNAME  "openhabian"
 #define MQTT_KEY       "openhabian"
 
-#define DHTPIN 4     // what digital pin the DHT22 is conected to
+#define DHTPIN 0     // what digital pin the DHT22 is conected to
 #define DHTTYPE DHT22   // there are multiple kinds of DHT sensors
-
-int repeat = 200;
-
-//int ledG = 15;
-//int ledR = 13;
 
 DHT dht(DHTPIN, DHTTYPE);
 
 
 void setup() {
+
+  if (!sisensor.begin())
+  {
+    Serial.println("Did not find Si7021 sensor!");
+    while (true)
+      ;
+  }
+
+  /**
+   * To try to reduce this, let’s switch off the WiFi radio at the beginning 
+   * of the setup() function, keep it off while we’re reading the sensors, 
+   * and switch it back on when we are ready to send the results to the server.
+   * */
+
+  WiFi.mode( WIFI_OFF );
+  WiFi.forceSleepBegin();
+  delay(1);
+  
   Serial.begin(9600);
   Serial.setTimeout(2000);
-  delay(10);
+  delay(1);
 
   // Wait for serial to initialize.
   while(!Serial) { }
-
-  Serial.println("Device Started");
-  Serial.println("-------------------------------------");
-  Serial.println("Running DHT!");
-  Serial.println("-------------------------------------");
-
-
-  //pinMode(ledG, OUTPUT);
-  //pinMode(ledR, OUTPUT);
-
+  
   // connect to Wifi
   connect();
 
@@ -54,8 +61,8 @@ void setup() {
   //see also https://github.com/256dpi/arduino-mqtt
   client.begin(MQTT_SERVER, WiFiclient);
 
-  client.setWill("/dht_22/service","Connection interrupted");
-  client.setOptions(repeat*3, true, 1000);
+  //client.setWill("/dht_22/service","Connection interrupted");
+  //client.setOptions(200, true, 1000);
 
   Serial.print("\nconnecting to mqqt broker...");
   while (!client.connect("dht22_sensor", "openhabian", "openhabian")) {
@@ -65,18 +72,58 @@ void setup() {
   Serial.println("\nconnected!");
 
 
+  checkTemperature();
+  checkLight();
+  
+  
+  // Sleep
+  Serial.println("ESP8266 in sleep mode");
+
+  WiFi.disconnect( true );
+  delay( 1 );
+  // WAKE_RF_DISABLED to keep the WiFi radio disabled when we wake up
+  ESP.deepSleep( 30 * 1000000, WAKE_RF_DISABLED );
+
+
 }
 
-
-
-int interval = repeat*1000;
-int timeSinceLastRead = interval;
-
-int timeSinceLastChecks = 0;
 void loop() {
 
-  //Serial.println(timeSinceLastChecks);
-  if((timeSinceLastChecks) > repeat*1000) {
+}
+
+void checkLight(){
+
+  client.publish("/dht_22/light", String(analogRead(eingang)), true, 1);
+
+}
+
+void checkTemperature(){
+
+    // Reading temperature or humidity takes about 250 milliseconds!
+    // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+    float h = dht.readHumidity();
+    // Read temperature as Celsius (the default)
+    float t = dht.readTemperature();
+
+    // Check if any reads failed and exit early (to try again).
+    if (isnan(h) || isnan(t)) {
+      return;
+    }
+    
+    float hic = dht.computeHeatIndex(t, h, false);
+
+    client.publish("/dht_22/temp", String(t));
+    client.publish("/dht_22/humidity", String(h));
+    client.publish("/dht_22/heatindex", String(hic));
+
+    client.publish("/si7021/temp", String(sisensor.readTemperature()));
+    client.publish("/si7021/humidity", String(sisensor.readHumidity()));
+
+    client.publish("/dht_22/service", "Succesfully Read Sensor.");
+  
+}
+
+void checkThings(){
     
     client.publish("/dht_22/service", "Start Checks for Wifi and Mqtt."); 
     
@@ -85,97 +132,40 @@ void loop() {
       connect();
       client.publish("/dht_22/service", "Wifi Reconnected");        
     }
+    
     checkBrokerConnection();
-    
-    timeSinceLastChecks = 0;
-  }
-
-  if((timeSinceLastRead%1000)==0) {
-    client.publish("/dht_22/light", String(analogRead(eingang)), true, 1);
-  }
-
-  // Report every x seconds.
-  if(timeSinceLastRead > interval) {
-    
-    // Reading temperature or humidity takes about 250 milliseconds!
-    // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-    float h = dht.readHumidity();
-    // Read temperature as Celsius (the default)
-    float t = dht.readTemperature();
-    
-    // Read temperature as Fahrenheit (isFahrenheit = true)
-    //float f = dht.readTemperature(true);
-
-    // Check if any reads failed and exit early (to try again).
-    if (isnan(h) || isnan(t)) {
-      //Serial.println("Failed to read from DHT sensor!");
-      timeSinceLastRead = interval-2000;
-      //led(100,ledR);
-      return;
-    }
-    
-
-    //led(30,ledG);
-  
-    // Compute heat index in Fahrenheit (the default)
-    //float hif = dht.computeHeatIndex(f, h);
-    // Compute heat index in Celsius (isFahreheit = false)
-    float hic = dht.computeHeatIndex(t, h, false);
-
-    //Serial.print("Humidity: ");
-    //Serial.print(h);
-    //Serial.print(" %\t");
-    //Serial.print("Temperature: ");
-    //Serial.print(t);
-    //Serial.print(" *C ");
-    //Serial.print(f);
-    //Serial.print(" *F\t");
-    //Serial.print("Heat index: ");
-    //Serial.print(hic);
-    //Serial.print(" *C ");
-    //Serial.print(hif);
-    //Serial.println(" *F");
-
-    //Serial.println("");
-
-    client.publish("/dht_22/temp", String(t));
-    client.publish("/dht_22/humidity", String(h));
-    client.publish("/dht_22/heatindex", String(hic));
-
-     client.publish("/dht_22/service", "Succesfully Read Sensor.", true, 1);
-
-
-    timeSinceLastRead = 0;
-
-  }
-  delay(100);
-  timeSinceLastRead += 100;
-  timeSinceLastChecks +=100;
   
 }
 
-
-// blink a led
-void led(int del, int led){
-    digitalWrite(led, HIGH);
-    delay(del);
-    digitalWrite(led, LOW);
-  
-}
 
 // conect to a wifi network
 void connect() {
 
+  IPAddress ip( 192, 168, 178, 44 );
+  IPAddress gateway( 192, 168, 178, 1 );
+  IPAddress subnet( 255, 255, 255, 0 );
+
+
+  WiFi.forceSleepWake();
+  delay( 1 );
+
+  // Disable the WiFi persistence.  The ESP8266 will not load and save WiFi settings in the flash memory.
+  WiFi.persistent( false );
+
   // Connect to Wifi.
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(WIFI_SSID);
+  //Serial.println();
+  //Serial.print("Connecting to ");
+  //Serial.println(WIFI_SSID);
 
   // WiFi fix: https://github.com/esp8266/Arduino/issues/2186
   //WiFi.persistent(false);
   //WiFi.mode(WIFI_OFF);
-  //WiFi.mode(WIFI_STA);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.config( ip, gateway, subnet );
   WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+
 
   unsigned long wifiConnectStart = millis();
 

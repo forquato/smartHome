@@ -1,0 +1,6 @@
+{
+    "sketch": "dht22_mosquito.ino",
+    "board": "esp8266:esp8266:nodemcuv2",
+    "configuration": "CpuFrequency=80,UploadSpeed=256000,FlashSize=4M3M",
+    "port": "COM3"
+}
