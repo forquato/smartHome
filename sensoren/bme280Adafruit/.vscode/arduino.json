@@ -1,6 +1,7 @@
 {
-    "board": "esp8266:esp8266:nodemcuv2",
-    "configuration": "CpuFrequency=80,UploadSpeed=115200,FlashSize=4M3M",
-    "port": "COM4",
-    "sketch": "example.ino"
+    "board": "esp8266:esp8266:coredev",
+    "configuration": "LwIPVariant=Espressif,CpuFrequency=80,FlashFreq=40,FlashMode=dio,UploadSpeed=115200,FlashSize=512K64,ResetMethod=ck,Debug=Disabled,DebugLevel=None____",
+    "port": "COM5",
+    "sketch": "AdaFruitBme280.ino",
+    "programmer": "AVRISP mkII"
 }

@@ -3,12 +3,26 @@
 #include <ESP8266WiFi.h>
 #include <MQTTClient.h> //https://github.com/256dpi/arduino-mqtt
 
+// Adafruit si7021
 #include "Adafruit_Si7021.h" //si7021 sensor
 Adafruit_Si7021 sisensor = Adafruit_Si7021();
 
+// Adafruit BME280
+#include <Wire.h>
+#include <SPI.h>  // kann womöglich auskomentiert werden
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
+// ebenso Adafruit BME280
+#define BME_SCK 13
+#define BME_MISO 12
+#define BME_MOSI 11
+#define BME_CS 10
+#define SEALEVELPRESSURE_HPA (1027.25)
+Adafruit_BME280 bme; // I2C
+
+
 //#define WIFI_SSID       "FRITZ!Box 7490"
 //#define WIFI_PASS       "1337skillz"
-
 #define WIFI_SSID       "FritzInKa"
 #define WIFI_PASS       "04935557248837671843"
 
@@ -30,12 +44,24 @@ DHT dht(DHTPIN, DHTTYPE);
 
 void setup() {
 
+  Serial.begin(9600);
+
+  // initialize si7021
   if (!sisensor.begin())
   {
     Serial.println("Did not find Si7021 sensor!");
     while (true)
       ;
   }
+
+
+  // initialize BME280
+  bool status;
+  status = bme.begin();  
+    if (!status) {
+        Serial.println("Could not find a valid BME280 sensor, check wiring!");
+        while (1);
+    }
 
   /**
    * To try to reduce this, let’s switch off the WiFi radio at the beginning 
@@ -47,7 +73,7 @@ void setup() {
   WiFi.forceSleepBegin();
   delay(1);
   
-  Serial.begin(9600);
+  
   Serial.setTimeout(2000);
   delay(1);
 
@@ -82,7 +108,7 @@ void setup() {
   WiFi.disconnect( true );
   delay( 1 );
   // WAKE_RF_DISABLED to keep the WiFi radio disabled when we wake up
-  ESP.deepSleep( 30 * 1000000, WAKE_RF_DISABLED );
+  ESP.deepSleep( 240 * 1000000, WAKE_RF_DISABLED );
 
 
 }
@@ -112,12 +138,22 @@ void checkTemperature(){
     
     float hic = dht.computeHeatIndex(t, h, false);
 
+    //dht22
     client.publish("/dht_22/temp", String(t));
     client.publish("/dht_22/humidity", String(h));
     client.publish("/dht_22/heatindex", String(hic));
 
+    // si 7021
     client.publish("/si7021/temp", String(sisensor.readTemperature()));
     client.publish("/si7021/humidity", String(sisensor.readHumidity()));
+
+    //bme280
+    client.publish("/bme280/temp", String(bme.readTemperature()));
+    client.publish("/bme280/pressure", String(bme.readPressure() / 100.0F));
+    client.publish("/bme280/altitude", String(bme.readAltitude(SEALEVELPRESSURE_HPA)));
+    client.publish("/bme280/humidity", String(bme.readHumidity()));
+
+    //Serial.println("Temp: " + String(bme.readTemperature()));
 
     client.publish("/dht_22/service", "Succesfully Read Sensor.");
   

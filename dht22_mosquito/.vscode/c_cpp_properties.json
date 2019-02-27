@@ -5,7 +5,8 @@
             "includePath": [
                 "C:\\Users\\Dimas\\AppData\\Local\\Arduino15\\packages\\esp8266\\tools\\**",
                 "C:\\Users\\Dimas\\AppData\\Local\\Arduino15\\packages\\esp8266\\hardware\\esp8266\\2.3.0\\**",
-                "C:\\Users\\Dimas\\Documents\\Arduino\\libraries\\**"
+                "C:\\Users\\Dimas\\Documents\\Arduino\\libraries\\**",
+                "C:\\Users\\Dimas\\Documents\\Arduino\\libraries\\Adafruit_BME280_Library"
             ],
             "forcedInclude": [],
             "intelliSenseMode": "msvc-x64"
